@@ -2,7 +2,7 @@
 
 import json
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from pathlib import Path
 
 from gmail_cleanup.client import GmailClient
@@ -72,7 +72,7 @@ class TestDeleteModes:
     def test_delete_non_starred(self, mock_client):
         mock_client.search_thread_ids.return_value = iter(['thread_1'])
         
-        result = delete_non_starred(mock_client, dry_run=True)
+        delete_non_starred(mock_client, dry_run=True)
         
         mock_client.search_thread_ids.assert_called_once()
         query_arg = mock_client.search_thread_ids.call_args[0][0]
@@ -81,7 +81,7 @@ class TestDeleteModes:
     def test_delete_non_important(self, mock_client):
         mock_client.search_thread_ids.return_value = iter(['thread_1'])
         
-        result = delete_non_important(mock_client, dry_run=True)
+        delete_non_important(mock_client, dry_run=True)
         
         mock_client.search_thread_ids.assert_called_once()
         query_arg = mock_client.search_thread_ids.call_args[0][0]
@@ -90,7 +90,7 @@ class TestDeleteModes:
     def test_delete_non_starred_and_non_important(self, mock_client):
         mock_client.search_thread_ids.return_value = iter(['thread_1'])
         
-        result = delete_non_starred_and_non_important(mock_client, dry_run=True)
+        delete_non_starred_and_non_important(mock_client, dry_run=True)
         
         mock_client.search_thread_ids.assert_called_once()
         query_arg = mock_client.search_thread_ids.call_args[0][0]
@@ -100,7 +100,7 @@ class TestDeleteModes:
     def test_delete_all(self, mock_client):
         mock_client.search_thread_ids.return_value = iter(['thread_1'])
         
-        result = delete_all(mock_client, dry_run=True)
+        delete_all(mock_client, dry_run=True)
         
         mock_client.search_thread_ids.assert_called_once()
         query_arg = mock_client.search_thread_ids.call_args[0][0]
@@ -109,7 +109,7 @@ class TestDeleteModes:
     def test_delete_by_time(self, mock_client):
         mock_client.search_thread_ids.return_value = iter(['thread_1'])
         
-        result = delete_by_time(mock_client, '30d', dry_run=True)
+        delete_by_time(mock_client, '30d', dry_run=True)
         
         mock_client.search_thread_ids.assert_called_once()
         query_arg = mock_client.search_thread_ids.call_args[0][0]
@@ -118,7 +118,7 @@ class TestDeleteModes:
     def test_delete_by_sender(self, mock_client):
         mock_client.search_thread_ids.return_value = iter(['thread_1'])
         
-        result = delete_by_sender(mock_client, ['example.com'], dry_run=True)
+        delete_by_sender(mock_client, ['example.com'], dry_run=True)
         
         assert mock_client.search_thread_ids.call_count == 1
         query_arg = mock_client.search_thread_ids.call_args[0][0]
@@ -127,7 +127,7 @@ class TestDeleteModes:
     def test_delete_by_multiple_senders(self, mock_client):
         mock_client.search_thread_ids.return_value = iter(['thread_1'])
         
-        result = delete_by_sender(mock_client, ['a.com', 'b.com'], dry_run=True)
+        delete_by_sender(mock_client, ['a.com', 'b.com'], dry_run=True)
         
         assert mock_client.search_thread_ids.call_count == 2
 

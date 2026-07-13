@@ -1,7 +1,6 @@
 """Build Gmail search-operator strings."""
 
 import re
-from typing import Dict, Any
 
 
 def build_query(mode: str, **kwargs) -> str:

@@ -1,7 +1,6 @@
 """OAuth2 authentication for Gmail API."""
 
 import os
-from typing import Any
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
