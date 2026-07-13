@@ -1,0 +1,6 @@
+mode: report              # report | non_starred | non_important | non_starred_and_non_important | all | by_time | by_sender
+time_threshold: "30d"
+sender_list: []
+dry_run: true
+credentials_path: "credentials.json"
+token_path: "token.json"

@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install ruff pytest
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+    
+    - name: Lint with ruff
+      run: ruff check src/ tests/
+    
+    - name: Test with pytest
+      run: pytest -v
+    
+    - name: Check for committed secrets
+      run: |
+        if git ls-files | grep -E '(credentials\.json|token\.json|config\.yaml|\.env)'; then
+          echo "ERROR: Sensitive files found in repository"
+          exit 1
+        fi

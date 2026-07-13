@@ -1,0 +1,47 @@
+{
+  "threads_list": {
+    "threads": [
+      {"id": "thread_1"},
+      {"id": "thread_2"},
+      {"id": "thread_3"}
+    ],
+    "nextPageToken": null
+  },
+  "threads_list_page2": {
+    "threads": [
+      {"id": "thread_4"},
+      {"id": "thread_5"}
+    ],
+    "nextPageToken": null
+  },
+  "threads_batch_get": {
+    "threads": [
+      {
+        "id": "thread_1",
+        "messages": [{"id": "msg_1"}, {"id": "msg_2"}]
+      },
+      {
+        "id": "thread_2",
+        "messages": [{"id": "msg_3"}]
+      }
+    ]
+  },
+  "empty_response": {
+    "threads": [],
+    "nextPageToken": null
+  },
+  "message_headers": {
+    "payload": {
+      "headers": [
+        {"name": "From", "value": "sender@example.com"}
+      ]
+    }
+  },
+  "message_headers_alt": {
+    "payload": {
+      "headers": [
+        {"name": "From", "value": "User Name <user@domain.com>"}
+      ]
+    }
+  }
+}

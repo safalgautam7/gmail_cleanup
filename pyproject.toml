@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gmail-cleanup"
+version = "0.1.0"
+description = "A CLI tool to clean up your Gmail inbox"
+authors = [{name = "Your Name", email = "your.email@example.com"}]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "google-api-python-client>=2.70.0",
+    "google-auth-oauthlib>=0.8.0",
+    "google-auth>=2.15.0",
+    "pyyaml>=6.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.scripts]
+gmail-cleanup = "gmail_cleanup.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/yourusername/gmail-cleanup"
+Repository = "https://github.com/yourusername/gmail-cleanup"
