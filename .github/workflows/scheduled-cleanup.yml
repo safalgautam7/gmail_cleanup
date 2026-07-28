@@ -1,32 +1,32 @@
-name: Scheduled Cleanup
+# name: Scheduled Cleanup
 
-on:
-  schedule:
-    # Run daily at 3 AM
-    - cron: '0 3 * * *'
-  workflow_dispatch:
+# on:
+#   schedule:
+#     # Run daily at 3 AM
+#     - cron: '0 3 * * *'
+#   workflow_dispatch:
 
-jobs:
-  cleanup:
-    runs-on: ubuntu-latest
+# jobs:
+#   cleanup:
+#     runs-on: ubuntu-latest
     
-    steps:
-    - uses: actions/checkout@v3
+#     steps:
+#     - uses: actions/checkout@v3
     
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.10'
+#     - name: Set up Python
+#       uses: actions/setup-python@v4
+#       with:
+#         python-version: '3.10'
     
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
+#     - name: Install dependencies
+#       run: |
+#         python -m pip install --upgrade pip
+#         pip install -r requirements.txt
     
-    - name: Run cleanup
-      env:
-        GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
-      run: |
-        # Requires GMAIL_REFRESH_TOKEN to be set as a repository secret
-        # See README.md for instructions on obtaining a refresh token
-        gmail-cleanup clean --mode non_starred --no-dry-run --config config.yaml
+#     - name: Run cleanup
+#       env:
+#         GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
+#       run: |
+#         # Requires GMAIL_REFRESH_TOKEN to be set as a repository secret
+#         # See README.md for instructions on obtaining a refresh token
+#         gmail-cleanup clean --mode non_starred --no-dry-run --config config.yaml
