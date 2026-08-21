@@ -56,11 +56,16 @@ class RateLimiter:
 
 class GmailClient:
     """Thin wrapper over Gmail API calls."""
+    THREAD_GET_BATCH_SIZE = 10
+    THREAD_GET_BATCH_INTERVAL_SECONDS = 2.0
     
     def __init__(self, credentials: Credentials):
         """Initialize Gmail API service."""
         self.service = build('gmail', 'v1', credentials=credentials)
         self.read_limiter = RateLimiter(calls_per_second=50)
+        self.thread_get_batch_limiter = RateLimiter(
+            calls_per_second=1 / self.THREAD_GET_BATCH_INTERVAL_SECONDS
+        )
         self.write_limiter = RateLimiter(calls_per_second=1)
     
     @retry_with_backoff()
@@ -212,7 +217,7 @@ class GmailClient:
             headers = ['From']
 
         all_responses: Dict[str, Dict[str, Any]] = {}
-        batch_size = 100
+        batch_size = self.THREAD_GET_BATCH_SIZE
 
         for start in range(0, len(thread_ids), batch_size):
             thread_ids_batch = thread_ids[start:start + batch_size]
@@ -233,6 +238,7 @@ class GmailClient:
                     request_id=thread_id,
                 )
 
+            self.thread_get_batch_limiter.wait_if_needed()
             batch.execute()
 
             if errors:
