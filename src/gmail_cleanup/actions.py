@@ -1,12 +1,44 @@
 """Business logic for Gmail cleanup operations."""
 
+import json
 import logging
-from typing import List, Tuple
+import os
+import sys
+import tempfile
+from typing import Any, Dict, List, Optional, Set, Tuple
 from itertools import islice
 from .client import GmailClient
 from .queries import build_query
 
 logger = logging.getLogger(__name__)
+
+
+def _load_state(state_path: str) -> Optional[Dict[str, Any]]:
+    """Load report state from disk."""
+    if not os.path.exists(state_path):
+        return None
+    try:
+        with open(state_path, 'r') as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError) as e:
+        logger.warning(f"Failed to load state from {state_path}: {e}")
+        return None
+
+
+def _save_state(state_path: str, state: Dict[str, Any]) -> None:
+    """Atomically save report state to disk."""
+    dir_name = os.path.dirname(state_path) or '.'
+    fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix='.tmp')
+    try:
+        with os.fdopen(fd, 'w') as f:
+            json.dump(state, f)
+        os.replace(tmp_path, state_path)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
 
 
 def batched(iterable, n):
@@ -89,30 +121,79 @@ def _extract_domain(from_header: str) -> str:
     return domain
 
 
-def extract_senders(client: GmailClient) -> List[Tuple[str, int]]:
+def extract_senders(
+    client: GmailClient,
+    fresh: bool = False,
+    state_path: str = '.report_state.json',
+    stop_after_batches: int = 0,
+) -> List[Tuple[str, int]]:
     """
     Extract unique senders/domains with counts.
     
+    Args:
+        client: GmailClient instance
+        fresh: If True, start fresh ignoring any existing state file
+        state_path: Path to checkpoint state file
+        stop_after_batches: If >0, stop after this many batches (for testing)
+        
     Returns:
         List of (domain, count) tuples sorted by count descending
     """
     query = build_query('report')
-    sender_counts = {}
+    sender_counts: Dict[str, int] = {}
     total_processed = 0
-    
+    processed_ids: Set[str] = set()
+    batch_count = 0
+
+    if not fresh:
+        state = _load_state(state_path)
+        if state:
+            sender_counts = state.get('sender_counts', {})
+            total_processed = state.get('total_processed', 0)
+            processed_ids = set(state.get('processed_thread_ids', []))
+            print(f"Resumed from {total_processed} threads ({len(processed_ids)} already processed)", file=sys.stderr)
+        else:
+            print("Starting fresh.", file=sys.stderr)
+    else:
+        print("Starting fresh (--fresh).", file=sys.stderr)
+
+    interrupted = False
     for thread_ids_batch in batched(client.search_thread_ids(query), 50):
-        batch_size = len(thread_ids_batch)
-        
-        # Extract From headers directly from thread metadata in batch requests
-        senders = client.get_thread_senders(list(thread_ids_batch))
-        
+        new_ids = [tid for tid in thread_ids_batch if tid not in processed_ids]
+        batch_count += 1
+
+        if not new_ids:
+            total_processed += len(thread_ids_batch)
+            processed_ids.update(thread_ids_batch)
+            continue
+
+        senders = client.get_thread_senders(new_ids)
+
         for from_header in senders:
             domain = _extract_domain(from_header)
             sender_counts[domain] = sender_counts.get(domain, 0) + 1
-        
-        total_processed += batch_size
-        logger.info(f"Processed {total_processed} threads so far...")
-    
+
+        processed_ids.update(new_ids)
+        total_processed += len(thread_ids_batch)
+
+        _save_state(state_path, {
+            'version': 1,
+            'query': query,
+            'sender_counts': sender_counts,
+            'total_processed': total_processed,
+            'processed_thread_ids': list(processed_ids),
+        })
+
+        print(f"Processed {total_processed} threads ({len(new_ids)} new in this batch)...", file=sys.stderr)
+
+        if stop_after_batches > 0 and batch_count >= stop_after_batches:
+            print(f"Stopped after {batch_count} batches for testing. Resume with --resume.", file=sys.stderr)
+            interrupted = True
+            break
+
+    if not interrupted:
+        print(f"Done! Processed {total_processed} threads.", file=sys.stderr)
+
     return sorted(sender_counts.items(), key=lambda x: x[1], reverse=True)
 
 

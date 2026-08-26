@@ -7,6 +7,10 @@ config.yaml
 # Audit logs
 cleanup.log
 
+# Report state
+.report_state.json
+*.tmp
+
 # Python-generated files
 __pycache__/
 *.py[oc]

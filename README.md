@@ -79,6 +79,23 @@ gmail-cleanup clean --config myconfig.yaml
 
 **Safety**: `--dry-run` is always the default. You must explicitly pass `--no-dry-run` to perform deletion.
 
+### Report with Resume
+
+The `report` command supports automatic checkpointing. Progress is saved to `.report_state.json` after every batch of 50 threads, so interrupted runs resume from where they left off:
+
+```bash
+# Normal run — checkpoints are saved automatically
+gmail-cleanup report
+
+# If interrupted (Ctrl+C, crash, etc.), just run again — it resumes automatically
+gmail-cleanup report
+
+# Force a fresh run, ignoring any saved state
+gmail-cleanup report --fresh
+```
+
+State is saved per-batch to `.report_state.json` (gitignored). The file tracks processed thread IDs and accumulated domain counts, so only new threads are fetched on resume.
+
 ## Config File
 
 Copy `config.example.yaml` to `config.yaml` and edit:
@@ -104,7 +121,7 @@ A GitHub Actions workflow is provided in `.github/workflows/scheduled-cleanup.ym
 
 ## Security
 
-- `credentials.json`, `token.json`, and `config.yaml` are gitignored — never committed.
+- `credentials.json`, `token.json`, `config.yaml`, and `.report_state.json` are gitignored — never committed.
 - CI checks for accidentally committed secrets and fails the build if found.
 - Only `gmail.modify` scope is requested (read + trash). No `compose` or `settings` scopes.
 

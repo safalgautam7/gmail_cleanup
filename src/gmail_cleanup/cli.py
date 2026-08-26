@@ -20,6 +20,23 @@ from . import setup_logging
 def setup_report_subcommand(subparsers):
     """Add the 'report' subcommand parser."""
     parser = subparsers.add_parser('report', help='Report sender domains with email counts')
+    parser.add_argument(
+        '--fresh',
+        action='store_true',
+        default=False,
+        help='Start fresh, ignoring any existing state file'
+    )
+    parser.add_argument(
+        '--state-file',
+        default='.report_state.json',
+        help='Path to state file (default: .report_state.json)'
+    )
+    parser.add_argument(
+        '--stop-after-batches',
+        type=int,
+        default=0,
+        help='Stop after N batches (for testing resume behavior)'
+    )
     parser.set_defaults(func=handle_report)
 
 
@@ -109,8 +126,13 @@ def handle_report(args):
         creds = get_credentials(config['credentials_path'], config['token_path'])
         client = GmailClient(creds)
         
-        print("Extracting sender domains...")
-        senders = extract_senders(client)
+        print("Extracting sender domains...", file=sys.stderr)
+        senders = extract_senders(
+            client,
+            fresh=args.fresh,
+            state_path=args.state_file,
+            stop_after_batches=args.stop_after_batches,
+        )
         
         print(f"\n{'Domain':<40} {'Count':<10}")
         print('-' * 50)
