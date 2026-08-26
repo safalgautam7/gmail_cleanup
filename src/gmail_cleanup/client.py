@@ -3,7 +3,7 @@
 import time
 import random
 from functools import wraps
-from typing import Any, Dict, Iterator, List
+from typing import Any, Dict, Iterator, List, Optional
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from google.auth.credentials import Credentials
@@ -56,11 +56,16 @@ class RateLimiter:
 
 class GmailClient:
     """Thin wrapper over Gmail API calls."""
+    THREAD_GET_BATCH_SIZE = 10
+    THREAD_GET_BATCH_INTERVAL_SECONDS = 2.0
     
     def __init__(self, credentials: Credentials):
         """Initialize Gmail API service."""
         self.service = build('gmail', 'v1', credentials=credentials)
         self.read_limiter = RateLimiter(calls_per_second=50)
+        self.thread_get_batch_limiter = RateLimiter(
+            calls_per_second=1 / self.THREAD_GET_BATCH_INTERVAL_SECONDS
+        )
         self.write_limiter = RateLimiter(calls_per_second=1)
     
     @retry_with_backoff()
@@ -84,7 +89,8 @@ class GmailClient:
                 response = self.service.users().threads().list(
                     userId='me',
                     q=query,
-                    pageToken=page_token
+                    pageToken=page_token,
+                    fields='nextPageToken,threads/id'
                 ).execute()
                 
                 for thread in response.get('threads', []):
@@ -101,7 +107,9 @@ class GmailClient:
             raise APIError(f"Network error: {str(e)}")
     
     @retry_with_backoff()
-    def get_message_headers(self, message_id: str, headers=['From']) -> Dict[str, Any]:
+    def get_message_headers(
+        self, message_id: str, headers: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
         """
         Get message headers.
         
@@ -115,6 +123,9 @@ class GmailClient:
         Raises:
             APIError: If API call fails
         """
+        if headers is None:
+            headers = ['From']
+
         try:
             response = self.service.users().messages().get(
                 userId='me',
@@ -157,23 +168,92 @@ class GmailClient:
             raise APIError(f"Failed to trash messages: {str(e)}")
     
     @retry_with_backoff()
-    def _get_thread_data(self, thread_id: str) -> Dict[str, Any]:
+    def _get_thread_data(
+        self, thread_id: str, headers: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
         """
-        Get full thread data from Gmail API.
+        Get thread metadata from Gmail API.
         
         Args:
             thread_id: Thread ID
+            headers: Header names to retrieve
             
         Returns:
-            Thread data dict with messages and their headers
+            Thread data dict with messages and requested headers
         """
+        if headers is None:
+            headers = ['From']
+
         self.read_limiter.wait_if_needed()
-        return self.service.users().threads().get(
-            userId='me',
-            id=thread_id,
-            format='metadata',
-            metadataHeaders=['From', 'To', 'Subject']
-        ).execute()
+        return self._thread_get_request(thread_id, headers).execute()
+
+    def _thread_get_request(self, thread_id: str, headers: List[str]):
+        fields = 'messages/id'
+        request = {
+            'userId': 'me',
+            'id': thread_id,
+            'format': 'metadata',
+            'fields': fields,
+        }
+        if headers:
+            request['metadataHeaders'] = headers
+            request['fields'] = 'messages(id,payload/headers(name,value))'
+
+        return self.service.users().threads().get(**request)
+
+    @retry_with_backoff()
+    def _get_threads_data_batch(
+        self, thread_ids: List[str], headers: Optional[List[str]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Get thread metadata for multiple threads using a Gmail batch request.
+
+        Batch requests reduce HTTP round trips, though each subrequest still
+        counts against Gmail API quota.
+        """
+        if not thread_ids:
+            return []
+        if headers is None:
+            headers = ['From']
+
+        all_responses: Dict[str, Dict[str, Any]] = {}
+        batch_size = self.THREAD_GET_BATCH_SIZE
+
+        for start in range(0, len(thread_ids), batch_size):
+            thread_ids_batch = thread_ids[start:start + batch_size]
+            responses: Dict[str, Dict[str, Any]] = {}
+            errors: Dict[str, Exception] = {}
+
+            def callback(request_id, response, exception):
+                if exception is not None:
+                    errors[request_id] = exception
+                else:
+                    responses[request_id] = response
+
+            batch = self.service.new_batch_http_request(callback=callback)
+            for thread_id in thread_ids_batch:
+                self.read_limiter.wait_if_needed()
+                batch.add(
+                    self._thread_get_request(thread_id, headers),
+                    request_id=thread_id,
+                )
+
+            self.thread_get_batch_limiter.wait_if_needed()
+            batch.execute()
+
+            if errors:
+                thread_id, error = next(iter(errors.items()))
+                if isinstance(error, HttpError):
+                    raise error
+                raise APIError(f"Failed to get thread {thread_id}: {str(error)}")
+
+            all_responses.update(responses)
+
+        return [
+            all_responses[thread_id]
+            for thread_id in thread_ids
+            if thread_id in all_responses
+        ]
     
     def _extract_message_ids(self, thread_data: Dict[str, Any]) -> List[str]:
         """Extract message IDs from thread data."""
@@ -204,12 +284,11 @@ class GmailClient:
         """
         all_message_ids = []
         
-        for thread_id in thread_ids:
-            try:
-                data = self._get_thread_data(thread_id)
+        try:
+            for data in self._get_threads_data_batch(thread_ids, headers=[]):
                 all_message_ids.extend(self._extract_message_ids(data))
-            except Exception as e:
-                raise APIError(f"Failed to list message IDs for threads: {str(e)}")
+        except Exception as e:
+            raise APIError(f"Failed to list message IDs for threads: {str(e)}")
         
         return all_message_ids
     
@@ -228,11 +307,10 @@ class GmailClient:
         """
         senders = []
         
-        for thread_id in thread_ids:
-            try:
-                data = self._get_thread_data(thread_id)
+        try:
+            for data in self._get_threads_data_batch(thread_ids, headers=['From']):
                 senders.extend(self._extract_from_headers(data))
-            except Exception as e:
-                raise APIError(f"Failed to get thread senders: {str(e)}")
+        except Exception as e:
+            raise APIError(f"Failed to get thread senders: {str(e)}")
         
         return senders

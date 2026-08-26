@@ -103,7 +103,7 @@ def extract_senders(client: GmailClient) -> List[Tuple[str, int]]:
     for thread_ids_batch in batched(client.search_thread_ids(query), 50):
         batch_size = len(thread_ids_batch)
         
-        # Extract From headers directly from thread data (1 API call per thread)
+        # Extract From headers directly from thread metadata in batch requests
         senders = client.get_thread_senders(list(thread_ids_batch))
         
         for from_header in senders:
