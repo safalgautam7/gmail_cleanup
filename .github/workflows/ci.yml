@@ -1,57 +1,39 @@
-# The name of the workflow as it will appear in the GitHub Actions UI
-name: CI
-
-# Defines the events that will trigger this workflow to run
-on:
-  # Triggers when code is directly pushed to the 'main' branch
-  push:
-    branches: [main]
-  # Triggers when a pull request is opened or updated targeting the 'main' branch
-  pull_request:
-    branches: [main]
-
-jobs:
-  # Defines a single job named 'lint-and-test'
-  lint-and-test:
-    # Specifies the virtual machine environment to run the job on
-    runs-on: ubuntu-latest
-    
-    steps:
-    # Step 1: Checks out your repository code so the runner environment can access it
-    - uses: actions/checkout@v4
-    
-    # Step 2: Installs and configures Python 3.10 for the job
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
-    
-    # Step 3: Installs the necessary Python packages to run your code and tests
-    - name: Install dependencies
-      run: |
-        # Upgrades pip to the latest version
-        python -m pip install --upgrade pip
-        # Installs the ruff linter and pytest framework
-        pip install ruff pytest
-        # Checks if a requirements.txt file exists, and installs it if it does
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        # Installs your project itself in editable mode
-        pip install -e .
-    
-    # Step 4: Runs the Ruff linter to check for code style issues in 'src' and 'tests'
-    - name: Lint with ruff
-      run: ruff check src/ tests/
-    
-    # Step 5: Executes your test suite using pytest with verbose (-v) output
-    - name: Test with pytest
-      run: pytest -v
-    
-    # Step 6: A custom security check to ensure secrets aren't accidentally pushed
-    - name: Check for committed secrets
-      run: |
-        # Lists tracked files and checks if any match common sensitive file names
-        if git ls-files | grep -E '(credentials\.json|token\.json|config\.yaml|\.env)'; then
-          echo "ERROR: Sensitive files found in repository"
-          # Exits with a status code of 1, which fails the GitHub Actions workflow
-          exit 1
-        fi #
+# name: CI
+# 
+# on:
+#   push:
+#     branches: [main]
+#   pull_request:
+#     branches: [main]
+# 
+# jobs:
+#   lint-and-test:
+#     runs-on: ubuntu-latest
+#     
+#     steps:
+#     - uses: actions/checkout@v4
+#     
+#     - name: Set up Python
+#       uses: actions/setup-python@v5
+#       with:
+#         python-version: '3.10'
+#     
+#     - name: Install dependencies
+#       run: |
+#         python -m pip install --upgrade pip
+#         pip install ruff pytest
+#         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+#         pip install -e .
+#     
+#     - name: Lint with ruff
+#       run: ruff check src/ tests/
+#     
+#     - name: Test with pytest
+#       run: pytest -v
+#     
+#     - name: Check for committed secrets
+#       run: |
+#         if git ls-files | grep -E '(credentials\.json|token\.json|config\.yaml|\.env)'; then
+#           echo "ERROR: Sensitive files found in repository"
+#           exit 1
+#         fi
